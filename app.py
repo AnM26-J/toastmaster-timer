@@ -149,7 +149,7 @@ def populate_template_workbook(wb, sections, header):
 # Translations
 # ----------------------------------------------------------------------------
 TR = {
-    'title': ("Toastmaster Timer", "头马演讲计时器"),
+    'title': ("Toastmasters Pulse Assistant V1.0", "Toastmasters Pulse Assistant V1.0"),
     'thresholds_frame': ("Set Time Thresholds (minutes)", "设置时间阈值（分钟）"),
     'green': ("Green (minutes):", "绿灯（分钟）："),
     'yellow': ("Yellow (minutes):", "黄灯（分钟）："),
