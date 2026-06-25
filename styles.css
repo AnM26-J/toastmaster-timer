@@ -19,18 +19,16 @@ html, body {
 }
 /* ---------- Brand logo banner ---------- */
 .brand-banner {
-  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
-  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  display: block;
 }
-.brand-banner .brand-logo { display: block; height: 56px; width: auto; max-width: 100%; }
+.brand-banner .brand-logo { display: block; width: 100%; height: auto; }
 .login-card .brand-banner {
-  margin: -34px -44px 18px; padding: 18px 20px;
-  border-radius: 10px 10px 0 0;
+  margin: 0 0 16px;
 }
 .app-brand {
-  border-radius: 10px; padding: 14px 18px; margin-bottom: 12px;
+  margin: 0 0 12px;
 }
-.app-brand .brand-logo { height: 48px; }
 
 .login-card h1 { color: #1e3a8a; text-align: center; margin: 0 0 2px; font-size: 26px; }
 .login-card .sub { color: #64748b; text-align: center; margin: 0 0 22px; font-size: 14px; }
