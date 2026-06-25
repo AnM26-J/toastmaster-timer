@@ -657,9 +657,9 @@ class App:
         for e in self.roster:
             level = (e.get('level') or '').strip()
             ll = level.lower()
-            if 'evaluator' in ll:
+            if 'eval' in ll:
                 sec = 'evaluator'
-            elif 'table topic' in ll:
+            elif 'table' in ll or 'topic' in ll:
                 sec = 'table_topic'
             else:
                 sec = 'prepared'
@@ -841,7 +841,7 @@ class App:
 
         html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'><title>Timer Report</title>
 <style>
-@page{{size:A4 portrait;margin:14mm;}}
+@page{{size:A4 landscape;margin:12mm;}}
 body{{font-family:Arial,'Microsoft YaHei',sans-serif;color:#000;margin:0;}}
 h1{{text-align:center;font-size:18px;margin:0 0 10px;}}
 .hdr{{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:12px;}}
