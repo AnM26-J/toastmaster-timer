@@ -138,6 +138,8 @@ def populate_template_workbook(wb, sections, header):
         ws['I7'] = header['date']
     if header.get('timer_name'):
         ws['R7'] = header['timer_name']
+    if header.get('location'):
+        ws['M7'] = header['location']
     for sec in reversed(SECTION_ORDER):
         _fill_section(ws, sec, sections.get(sec, []))
     return ws
@@ -192,7 +194,10 @@ TR = {
     'name_required': ("Please enter a name.", "请输入姓名。"),
     'exported': ("Report exported: {f}", "报告已导出：{f}"),
     'export_fmt_label': ("Export Report:", "导出报告："),
-    'meta': ("Timer: {timer}   Date: {date}   YTMC: {ytmc}", "计时员：{timer}   日期：{date}   YTMC：{ytmc}"),
+    'meta': ("Timer: {timer}   Date: {date}   YTMC: {ytmc}   Location: {loc}",
+             "计时员：{timer}   日期：{date}   YTMC：{ytmc}   地点：{loc}"),
+    'login_required': ("Please fill in Timer Name, YTMC No. and Meeting Location.",
+                       "请填写 Timer Name、YTMC No. 和 Meeting Location。"),
 }
 
 # id -> translation key for static UI text
@@ -212,7 +217,7 @@ LABELS = {
 class App:
     def __init__(self):
         self.lang = 'en'
-        self.login = {'timer_name': '', 'date': '', 'ytmc_no': ''}
+        self.login = {'timer_name': '', 'date': '', 'ytmc_no': '', 'location': ''}
         self.green_time = 60
         self.yellow_time = 120
         self.red_time = 180
@@ -262,7 +267,7 @@ class App:
     def start(self):
         self.el('in_date').value = datetime.now().strftime('%Y-%m-%d')
         self.on('btn_enter', 'click', lambda e: self.do_login())
-        for fid in ('in_timer_name', 'in_date', 'in_ytmc'):
+        for fid in ('in_timer_name', 'in_date', 'in_ytmc', 'in_location'):
             self.on(fid, 'keydown', self._login_enter)
         self.el('in_timer_name').focus()
 
@@ -271,12 +276,17 @@ class App:
             self.do_login()
 
     def do_login(self):
-        self.login = {
+        self.lang = 'zh' if self.el('in_lang').value == 'zh' else 'en'
+        login = {
             'timer_name': self.el('in_timer_name').value.strip(),
             'date': self.el('in_date').value.strip(),
             'ytmc_no': self.el('in_ytmc').value.strip(),
+            'location': self.el('in_location').value.strip(),
         }
-        self.lang = 'zh' if self.el('in_lang').value == 'zh' else 'en'
+        if not (login['timer_name'] and login['ytmc_no'] and login['location']):
+            self.toast(self.tr('login_required'))
+            return
+        self.login = login
         self.el('login').classList.add('hidden')
         self.el('app').classList.remove('hidden')
         self.build_app()
@@ -306,7 +316,8 @@ class App:
         self.el('meta_line').textContent = self.tr(
             'meta', timer=self.login.get('timer_name', '') or '-',
             date=self.login.get('date', '') or '-',
-            ytmc=self.login.get('ytmc_no', '') or '-')
+            ytmc=self.login.get('ytmc_no', '') or '-',
+            loc=self.login.get('location', '') or '-')
 
     # ---- event wiring ----
     def wire_app_events(self):
@@ -655,6 +666,7 @@ class App:
             ('Timer', self.login.get('timer_name', '')),
             ('Date', self.login.get('date', '')),
             ('YTMC No.', self.login.get('ytmc_no', '')),
+            ('Meeting Location', self.login.get('location', '')),
             ('Generated', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
             ('Total Speakers', str(len(self.roster))),
         ]
@@ -700,7 +712,8 @@ class App:
     def export_xlsx(self):
         sections = self.build_report_sections()
         header = {'timer_name': self.login.get('timer_name', ''),
-                  'date': self.login.get('date', '')}
+                  'date': self.login.get('date', ''),
+                  'location': self.login.get('location', '')}
         wb = load_workbook(TEMPLATE_FILENAME)
         populate_template_workbook(wb, sections, header)
         bio = io.BytesIO()
@@ -761,20 +774,19 @@ class App:
         def esc(s):
             return (str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
 
-        # Static header values come from the template, so the PDF matches the
-        # Excel report header (Year / Meeting No. / Location). Date + Timer come
-        # from the login info, exactly as written into the XLSX (I7 / R7).
-        year = mtg = loc = ''
+        # Year / Meeting No. come from the template; Date / Timer / Location come
+        # from the login info, exactly as written into the XLSX (I7 / R7 / M7).
+        year = mtg = ''
         try:
             wb = load_workbook(TEMPLATE_FILENAME)
             tws = wb['Timer'] if 'Timer' in wb.sheetnames else wb.active
             year = tws['B7'].value or ''
             mtg = tws['F7'].value or ''
-            loc = tws['M7'].value or ''
         except Exception:
             pass
         date = self.login.get('date', '')
         timer = self.login.get('timer_name', '')
+        loc = self.login.get('location', '')
 
         def head_cells(has_proj, right):
             cols = ['S.No.', 'Speaker Name']
