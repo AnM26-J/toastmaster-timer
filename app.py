@@ -360,19 +360,30 @@ class App:
         self.el('time_display').textContent = f"{m:02d}:{s:02d}"
         self.check_color()
 
+    def set_side_lights(self, color):
+        for lid in ('light_left', 'light_right'):
+            node = self.el(lid)
+            if node is not None:
+                node.style.background = color
+                glow = 'transparent' if color == '#ffffff' else color
+                node.style.boxShadow = (
+                    f"inset 0 0 40px rgba(0,0,0,.10), 0 0 26px {glow}")
+
     def check_color(self):
         t = self.time_elapsed
         disp = self.el('time_display')
         if t < self.green_time:
-            stage = 'none'; disp.style.background = '#ffffff'; disp.style.color = '#0f172a'
+            stage = 'none'; bg = '#ffffff'; fg = '#0f172a'
         elif t < self.yellow_time:
-            stage = 'green'; disp.style.background = '#16a34a'; disp.style.color = '#ffffff'
+            stage = 'green'; bg = '#16a34a'; fg = '#ffffff'
         elif t < self.red_time:
-            stage = 'yellow'; disp.style.background = '#fff44f'; disp.style.color = '#0f172a'
+            stage = 'yellow'; bg = '#fff44f'; fg = '#0f172a'
         elif t < self.max_red_time:
-            stage = 'red'; disp.style.background = '#dc2626'; disp.style.color = '#ffffff'
+            stage = 'red'; bg = '#dc2626'; fg = '#ffffff'
         else:
-            stage = 'maxred'; disp.style.background = '#7f1d1d'; disp.style.color = '#ffffff'
+            stage = 'maxred'; bg = '#7f1d1d'; fg = '#ffffff'
+        disp.style.background = bg; disp.style.color = fg
+        self.set_side_lights(bg)
         if stage != self.current_stage:
             self.handle_stage_transition(stage)
             self.current_stage = stage
@@ -408,6 +419,7 @@ class App:
         disp = self.el('time_display')
         disp.textContent = '00:00'
         disp.style.background = '#ffffff'; disp.style.color = '#0f172a'
+        self.set_side_lights('#ffffff')
         self.el('start_btn').disabled = False
         self.el('pause_btn').disabled = True
         self.el('reset_btn').disabled = True
@@ -835,7 +847,9 @@ h1{{text-align:center;font-size:18px;margin:0 0 10px;}}
 .hdr{{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:12px;}}
 .hdr td{{padding:2px 6px;white-space:nowrap;}}
 table.grid{{width:100%;border-collapse:collapse;margin:0 0 14px;
-  table-layout:fixed;font-size:11px;}}
+  table-layout:fixed;font-size:11px;
+  page-break-inside:avoid;break-inside:avoid;}}
+table.grid tr,table.grid thead{{page-break-inside:avoid;break-inside:avoid;}}
 table.grid th,table.grid td{{border:1px solid #000;padding:3px 4px;
   text-align:center;overflow:hidden;}}
 table.grid thead th{{background:#e8edf7;font-weight:bold;}}
@@ -849,7 +863,7 @@ table.grid .gap,table.grid th.gap{{border:none;width:14px;padding:0;}}
 <td><b>Year:</b> {esc(year)}</td>
 <td><b>Meeting No.:</b> {esc(mtg)}</td>
 <td><b>Date:</b> {esc(date)}</td>
-<td>{esc(loc)}</td>
+<td><b>Location:</b> {esc(loc)}</td>
 <td><b>Timer:</b> {esc(timer)}</td>
 </tr></table>
 {''.join(body)}
