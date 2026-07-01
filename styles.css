@@ -29,6 +29,13 @@ html, body {
 .app-brand {
   margin: 0 0 12px;
 }
+.app-brand .brand-logo {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 80px;
+  margin: 0 auto;
+}
 
 .login-card h1 { color: #1e3a8a; text-align: center; margin: 0 0 2px; font-size: 26px; }
 .login-card .sub { color: #64748b; text-align: center; margin: 0 0 22px; font-size: 14px; }
