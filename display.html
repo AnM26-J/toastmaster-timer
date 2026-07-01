@@ -23,7 +23,13 @@
       padding: 12px; border: 2px solid #cbd5e1; border-radius: 10px; margin-bottom: 16px; }
     .card button { width: 100%; font-size: 18px; font-weight: 700; padding: 14px;
       border: none; border-radius: 10px; background: #2563eb; color: #fff; cursor: pointer; }
-    /* Status pill on the light screen */
+    /* Big centred banner shown until the first colour arrives */
+    #banner { position: fixed; inset: 0; display: flex; align-items: center;
+      justify-content: center; flex-direction: column; text-align: center; z-index: 4;
+      pointer-events: none; padding: 24px; }
+    #banner .big { font-size: 22px; font-weight: 800; color: #0f172a; }
+    #banner .small { font-size: 14px; color: #334155; margin-top: 8px; max-width: 320px; }
+    /* Status pill */
     #status { position: fixed; top: 10px; right: 12px; font-size: 12px; padding: 4px 10px;
       border-radius: 20px; background: rgba(0,0,0,.35); color: #fff; z-index: 5; }
     #exit { position: fixed; top: 8px; left: 12px; font-size: 12px; padding: 6px 12px;
@@ -47,12 +53,17 @@
   <div id="light" class="hidden">
     <button id="exit" class="hidden">Change code</button>
     <div id="status">connecting…</div>
+    <div id="banner">
+      <div class="big" id="banner_big">Connecting…</div>
+      <div class="small" id="banner_small"></div>
+    </div>
   </div>
 
   <script>
+    // Must match the broker used by the timer page (index.html).
     const RT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
     const $ = (id) => document.getElementById(id);
-    let client = null, wakeLock = null;
+    let client = null, wakeLock = null, gotColor = false, curRoom = '';
 
     function topicFor(room) { return 'tmpulse/light/' + room; }
 
@@ -65,23 +76,50 @@
     });
 
     function setStatus(txt) { $('status').textContent = txt; }
+    function setBanner(big, small) {
+      $('banner_big').textContent = big;
+      $('banner_small').textContent = small || '';
+    }
 
     function connect(room) {
+      curRoom = room;
+      gotColor = false;
       $('join').classList.add('hidden');
       $('light').classList.remove('hidden');
       $('exit').classList.remove('hidden');
+      $('banner').classList.remove('hidden');
+      $('light').style.background = '#ffffff';
       requestWakeLock();
       const clientId = 'disp_' + Math.random().toString(16).slice(2);
-      client = mqtt.connect(RT_BROKER, { clientId, connectTimeout: 8000, reconnectPeriod: 3000, keepalive: 30 });
-      const topic = topicFor(room);
       setStatus('connecting…');
-      client.on('connect', () => { setStatus('online'); client.subscribe(topic, () => {}); });
+      setBanner('Connecting…', 'Reaching the sync server for code ' + room);
+      try {
+        client = mqtt.connect(RT_BROKER, {
+          clientId, connectTimeout: 8000, reconnectPeriod: 3000, keepalive: 30, clean: true
+        });
+      } catch (e) {
+        setStatus('error'); setBanner('Cannot start', String(e));
+        return;
+      }
+      const topic = topicFor(room);
+      client.on('connect', () => {
+        setStatus('online');
+        if (!gotColor) setBanner('Connected \u2713', 'Waiting for the timer (code ' + room + ')\u2026 Make sure the computer is logged in and showing the same code.');
+        client.subscribe(topic, (err) => {
+          if (err) setBanner('Subscribe failed', String(err));
+        });
+      });
       client.on('reconnect', () => setStatus('reconnecting…'));
-      client.on('close', () => setStatus('offline'));
-      client.on('error', () => setStatus('error'));
+      client.on('close', () => { setStatus('offline'); if (!gotColor) setBanner('Offline', 'Cannot reach the sync server. Check this phone\u2019s internet, or try Wi-Fi instead of cellular.'); });
+      client.on('offline', () => setStatus('offline'));
+      client.on('error', (e) => { setStatus('error'); if (!gotColor) setBanner('Connection error', String(e && e.message ? e.message : e)); });
       client.on('message', (t, payload) => {
         const color = payload.toString();
-        if (/^#[0-9a-fA-F]{3,8}$/.test(color)) $('light').style.background = color;
+        if (/^#[0-9a-fA-F]{3,8}$/.test(color)) {
+          gotColor = true;
+          $('banner').classList.add('hidden');
+          $('light').style.background = color;
+        }
       });
     }
 

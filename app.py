@@ -310,7 +310,19 @@ class App:
     # ---- phone light sync ----
     def start_phone_sync(self):
         if self.room_code is None:
-            self.room_code = '%04d' % random.randint(0, 9999)
+            saved = None
+            try:
+                saved = window.localStorage.getItem('tmpulse_room')
+            except Exception:
+                saved = None
+            if saved:
+                self.room_code = saved
+            else:
+                self.room_code = '%04d' % random.randint(0, 9999)
+                try:
+                    window.localStorage.setItem('tmpulse_room', self.room_code)
+                except Exception:
+                    pass
         try:
             window.rtConnect(self.room_code, None, None)
         except Exception:
