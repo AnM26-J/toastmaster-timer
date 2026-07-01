@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Signal Light — Toastmasters Pulse Assistant</title>
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@5.7.0/dist/mqtt.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+    #light { position: fixed; inset: 0; background: #ffffff;
+      transition: background .25s ease; display: flex; align-items: center;
+      justify-content: center; flex-direction: column; }
+    /* Join screen */
+    #join { position: fixed; inset: 0; background: linear-gradient(#e9f2ff, #ffffff);
+      display: flex; align-items: center; justify-content: center; }
+    .card { background: #fff; border-radius: 16px; padding: 28px 24px; width: 88%;
+      max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,.15); text-align: center; }
+    .card h1 { font-size: 20px; margin: 0 0 6px; color: #1e3a8a; }
+    .card p { font-size: 13px; color: #475569; margin: 0 0 18px; }
+    .card input { width: 100%; font-size: 32px; text-align: center; letter-spacing: 8px;
+      padding: 12px; border: 2px solid #cbd5e1; border-radius: 10px; margin-bottom: 16px; }
+    .card button { width: 100%; font-size: 18px; font-weight: 700; padding: 14px;
+      border: none; border-radius: 10px; background: #2563eb; color: #fff; cursor: pointer; }
+    /* Status pill on the light screen */
+    #status { position: fixed; top: 10px; right: 12px; font-size: 12px; padding: 4px 10px;
+      border-radius: 20px; background: rgba(0,0,0,.35); color: #fff; z-index: 5; }
+    #exit { position: fixed; top: 8px; left: 12px; font-size: 12px; padding: 6px 12px;
+      border-radius: 20px; background: rgba(0,0,0,.35); color: #fff; z-index: 5;
+      border: none; cursor: pointer; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <!-- Join screen -->
+  <div id="join">
+    <div class="card">
+      <h1>Signal Light</h1>
+      <p>Enter the pairing code shown on the timer's computer.</p>
+      <input id="code_in" type="tel" inputmode="numeric" maxlength="6" placeholder="0000" />
+      <button id="join_btn">Start Light</button>
+    </div>
+  </div>
+
+  <!-- Full-screen light -->
+  <div id="light" class="hidden">
+    <button id="exit" class="hidden">Change code</button>
+    <div id="status">connecting…</div>
+  </div>
+
+  <script>
+    const RT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+    const $ = (id) => document.getElementById(id);
+    let client = null, wakeLock = null;
+
+    function topicFor(room) { return 'tmpulse/light/' + room; }
+
+    async function requestWakeLock() {
+      try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); }
+      catch (e) { /* ignore */ }
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (wakeLock === null && document.visibilityState === 'visible') requestWakeLock();
+    });
+
+    function setStatus(txt) { $('status').textContent = txt; }
+
+    function connect(room) {
+      $('join').classList.add('hidden');
+      $('light').classList.remove('hidden');
+      $('exit').classList.remove('hidden');
+      requestWakeLock();
+      const clientId = 'disp_' + Math.random().toString(16).slice(2);
+      client = mqtt.connect(RT_BROKER, { clientId, connectTimeout: 8000, reconnectPeriod: 3000, keepalive: 30 });
+      const topic = topicFor(room);
+      setStatus('connecting…');
+      client.on('connect', () => { setStatus('online'); client.subscribe(topic, () => {}); });
+      client.on('reconnect', () => setStatus('reconnecting…'));
+      client.on('close', () => setStatus('offline'));
+      client.on('error', () => setStatus('error'));
+      client.on('message', (t, payload) => {
+        const color = payload.toString();
+        if (/^#[0-9a-fA-F]{3,8}$/.test(color)) $('light').style.background = color;
+      });
+    }
+
+    function disconnect() {
+      try { if (client) client.end(true); } catch (e) {}
+      client = null;
+      $('light').classList.add('hidden');
+      $('join').classList.remove('hidden');
+    }
+
+    $('join_btn').addEventListener('click', () => {
+      const code = ($('code_in').value || '').trim();
+      if (!code) { $('code_in').focus(); return; }
+      connect(code);
+    });
+    $('code_in').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('join_btn').click(); });
+    $('exit').addEventListener('click', disconnect);
+
+    // Auto-join if code is passed via ?code=1234 (e.g. from a QR code).
+    const params = new URLSearchParams(location.search);
+    const preset = params.get('code');
+    if (preset) { $('code_in').value = preset; connect(preset); }
+  </script>
+</body>
+</html>

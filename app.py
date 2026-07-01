@@ -8,6 +8,7 @@ Same logic as the desktop tool, running entirely in the browser:
 """
 import asyncio
 import io
+import random
 from copy import copy
 from datetime import datetime
 
@@ -235,6 +236,8 @@ class App:
         self._ff_task = None
         self._tick_started = False
         self._events_wired = False
+        self.room_code = None
+        self.last_light = '#ffffff'
 
     # ---- translation ----
     def tr(self, key, **kw):
@@ -298,10 +301,53 @@ class App:
         self.wire_app_events()
         self.render_roster()
         self.update_current_speaker_label()
+        self.start_phone_sync()
         # start the 1-second timer loop (only once for the page lifetime)
         if not self._tick_started:
             self._tick_started = True
             asyncio.ensure_future(self._tick_loop())
+
+    # ---- phone light sync ----
+    def start_phone_sync(self):
+        if self.room_code is None:
+            self.room_code = '%04d' % random.randint(0, 9999)
+        try:
+            window.rtConnect(self.room_code, None, None)
+        except Exception:
+            pass
+
+    def publish_light(self, color):
+        self.last_light = color
+        try:
+            window.rtPublish(color)
+        except Exception:
+            pass
+
+    def display_url(self):
+        loc = window.location
+        path = loc.pathname
+        if path.endswith('index.html'):
+            dirpath = path[:-len('index.html')]
+        elif path.endswith('/'):
+            dirpath = path
+        else:
+            dirpath = path.rsplit('/', 1)[0] + '/'
+        return loc.origin + dirpath + 'display.html'
+
+    def show_phone_modal(self):
+        url = self.display_url()
+        self.el('pm_url').textContent = url
+        self.el('pm_code').textContent = self.room_code or '----'
+        self.el('pm_status').textContent = (
+            'Online' if window.rtConnected() else 'Connecting…')
+        try:
+            window.rtMakeQR('pm_qr', url + '?code=' + (self.room_code or ''))
+        except Exception:
+            pass
+        self.el('phone_modal').classList.remove('hidden')
+
+    def hide_phone_modal(self):
+        self.el('phone_modal').classList.add('hidden')
 
     def apply_language(self):
         for id_, key in LABELS.items():
@@ -337,6 +383,8 @@ class App:
         self.on('next_btn', 'click', lambda e: self.next_speaker())
         self.on('export_btn', 'click', lambda e: asyncio.ensure_future(self.export_report()))
         self.on('logout_btn', 'click', lambda e: self.logout())
+        self.on('phone_btn', 'click', lambda e: self.show_phone_modal())
+        self.on('pm_close', 'click', lambda e: self.hide_phone_modal())
         self.on('name_in', 'keydown', lambda e: self.add_name() if e.key == 'Enter' else None)
         self.on('level_in', 'keydown', lambda e: self.add_name() if e.key == 'Enter' else None)
         # fast forward: press and hold
@@ -384,6 +432,8 @@ class App:
             stage = 'maxred'; bg = '#7f1d1d'; fg = '#ffffff'
         disp.style.background = bg; disp.style.color = fg
         self.set_side_lights(bg)
+        if bg != self.last_light:
+            self.publish_light(bg)
         if stage != self.current_stage:
             self.handle_stage_transition(stage)
             self.current_stage = stage
@@ -425,11 +475,16 @@ class App:
         self.el('reset_btn').disabled = True
         self.el('apply_btn').disabled = False
         self.current_stage = 'none'
+        self.publish_light('#ffffff')
         self.send_signal(0)
 
     def logout(self):
         # stop timer and reset display
         self.reset_timer()
+        try:
+            window.rtDisconnect()
+        except Exception:
+            pass
         # back to the login screen
         self.el('app').classList.add('hidden')
         self.el('login').classList.remove('hidden')
