@@ -132,16 +132,50 @@
     // ----- Bluetooth LE (HM-10 / HM-19: service 0xFFE0, characteristic 0xFFE1) -----
     const BLE_SERVICE = 0xffe0;
     const BLE_CHAR = 0xffe1;
+    // Common serial/UART-style services so we can talk to a variety of BLE modules.
+    const BLE_OPTIONAL_SERVICES = [
+      0xffe0, 0xffe5, 0xfff0, 0xff00,
+      '0000ffe0-0000-1000-8000-00805f9b34fb',
+      '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART
+      '0000fff0-0000-1000-8000-00805f9b34fb'
+    ];
     let _bleDevice = null, _bleChar = null;
     window.bleIsConnected = function () { return !!(_bleChar && _bleDevice && _bleDevice.gatt.connected); };
+
+    // Pick a characteristic we can write to; prefer HM-10 FFE1, else any writable one.
+    async function _findWritableChar(server) {
+      // Preferred path: HM-10 / HM-19 service + characteristic.
+      try {
+        const svc = await server.getPrimaryService(BLE_SERVICE);
+        const ch = await svc.getCharacteristic(BLE_CHAR);
+        if (ch.properties.write || ch.properties.writeWithoutResponse) return ch;
+      } catch (e) { /* fall through to generic discovery */ }
+      // Generic: scan every service for the first writable characteristic.
+      let services = [];
+      try { services = await server.getPrimaryServices(); } catch (e) { services = []; }
+      for (const svc of services) {
+        let chars = [];
+        try { chars = await svc.getCharacteristics(); } catch (e) { continue; }
+        for (const ch of chars) {
+          if (ch.properties.write || ch.properties.writeWithoutResponse) return ch;
+        }
+      }
+      return null;
+    }
+
     window.bleConnect = async function () {
+      // acceptAllDevices so the chooser lists every nearby BLE device, not only
+      // those advertising the HM-10 FFE0 service (many modules don't advertise it).
       const dev = await navigator.bluetooth.requestDevice({
-        filters: [{ services: [BLE_SERVICE] }],
-        optionalServices: [BLE_SERVICE]
+        acceptAllDevices: true,
+        optionalServices: BLE_OPTIONAL_SERVICES
       });
       const server = await dev.gatt.connect();
-      const svc = await server.getPrimaryService(BLE_SERVICE);
-      const ch = await svc.getCharacteristic(BLE_CHAR);
+      const ch = await _findWritableChar(server);
+      if (!ch) {
+        try { dev.gatt.disconnect(); } catch (e) {}
+        throw new Error('No writable characteristic found on this device (need an HM-10/HM-19 style module).');
+      }
       _bleDevice = dev; _bleChar = ch;
       dev.addEventListener('gattserverdisconnected', () => {
         _bleChar = null;
