@@ -350,13 +350,29 @@ class App:
         url = self.display_url()
         self.el('pm_url').textContent = url
         self.el('pm_code').textContent = self.room_code or '----'
-        self.el('pm_status').textContent = (
-            'Online' if window.rtConnected() else 'Connecting…')
         try:
             window.rtMakeQR('pm_qr', url + '?code=' + (self.room_code or ''))
         except Exception:
             pass
         self.el('phone_modal').classList.remove('hidden')
+        asyncio.ensure_future(self._refresh_modal_status())
+
+    async def _refresh_modal_status(self):
+        for _ in range(12):
+            node = self.el('pm_status')
+            if node is None:
+                return
+            if window.rtConnected():
+                node.textContent = 'Online'
+                node.style.color = '#16a34a'
+                return
+            node.textContent = 'Connecting…'
+            node.style.color = '#b45309'
+            await asyncio.sleep(0.5)
+        node = self.el('pm_status')
+        if node is not None and not window.rtConnected():
+            node.textContent = 'Cannot reach sync server — check this computer\u2019s internet'
+            node.style.color = '#b91c1c'
 
     def hide_phone_modal(self):
         self.el('phone_modal').classList.add('hidden')

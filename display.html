@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Signal Light — Toastmasters Pulse Assistant</title>
-  <script src="https://cdn.jsdelivr.net/npm/mqtt@5.7.0/dist/mqtt.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
@@ -60,12 +59,16 @@
   </div>
 
   <script>
-    // Must match the broker used by the timer page (index.html).
-    const RT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+    // Sync over ntfy.sh via plain HTTPS/WSS (port 443) so it works through
+    // restrictive/corporate networks. Must match the timer page (index.html).
+    const NTFY_HTTP = 'https://ntfy.sh/';
+    const NTFY_WS = 'wss://ntfy.sh/';
     const $ = (id) => document.getElementById(id);
-    let client = null, wakeLock = null, gotColor = false, curRoom = '';
+    let ws = null, wakeLock = null, gotColor = false, curRoom = '';
+    let active = false, reconnectTimer = null;
 
-    function topicFor(room) { return 'tmpulse/light/' + room; }
+    function topicFor(room) { return 'tmpulse-signal-' + room; }
+    function validColor(c) { return /^#[0-9a-fA-F]{3,8}$/.test(c); }
 
     async function requestWakeLock() {
       try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); }
@@ -80,52 +83,80 @@
       $('banner_big').textContent = big;
       $('banner_small').textContent = small || '';
     }
+    function applyColor(color) {
+      if (!validColor(color)) return;
+      gotColor = true;
+      $('banner').classList.add('hidden');
+      $('light').style.background = color;
+    }
+
+    // Fetch the last cached colour so a phone joining mid-session syncs at once.
+    function pollLast(room) {
+      fetch(NTFY_HTTP + topicFor(room) + '/json?poll=1&since=12h')
+        .then((r) => r.text())
+        .then((txt) => {
+          const lines = txt.trim().split('\n').filter(Boolean);
+          for (let i = lines.length - 1; i >= 0; i--) {
+            try {
+              const d = JSON.parse(lines[i]);
+              if (d.event === 'message' && validColor(d.message)) { applyColor(d.message); break; }
+            } catch (e) { /* skip */ }
+          }
+        })
+        .catch(() => {});
+    }
+
+    function openSocket(room) {
+      if (!active) return;
+      let sock;
+      try { sock = new WebSocket(NTFY_WS + topicFor(room) + '/ws'); }
+      catch (e) { setStatus('error'); scheduleReconnect(room); return; }
+      ws = sock;
+      sock.onopen = () => {
+        setStatus('online');
+        if (!gotColor) setBanner('Connected \u2713', 'Waiting for the timer (code ' + room + ')\u2026 Make sure the computer is logged in and showing the same code.');
+      };
+      sock.onmessage = (e) => {
+        try {
+          const d = JSON.parse(e.data);
+          if (d.event === 'message' && validColor(d.message)) applyColor(d.message);
+        } catch (err) { /* ignore */ }
+      };
+      sock.onclose = () => {
+        setStatus('offline');
+        if (!gotColor) setBanner('Reconnecting\u2026', 'Trying to reach the sync server. If this stays, switch this phone between Wi-Fi and cellular.');
+        scheduleReconnect(room);
+      };
+      sock.onerror = () => { setStatus('error'); try { sock.close(); } catch (e) {} };
+    }
+
+    function scheduleReconnect(room) {
+      if (!active) return;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => { if (active) openSocket(room); }, 3000);
+    }
 
     function connect(room) {
       curRoom = room;
       gotColor = false;
+      active = true;
       $('join').classList.add('hidden');
       $('light').classList.remove('hidden');
       $('exit').classList.remove('hidden');
       $('banner').classList.remove('hidden');
       $('light').style.background = '#ffffff';
       requestWakeLock();
-      const clientId = 'disp_' + Math.random().toString(16).slice(2);
       setStatus('connecting…');
       setBanner('Connecting…', 'Reaching the sync server for code ' + room);
-      try {
-        client = mqtt.connect(RT_BROKER, {
-          clientId, connectTimeout: 8000, reconnectPeriod: 3000, keepalive: 30, clean: true
-        });
-      } catch (e) {
-        setStatus('error'); setBanner('Cannot start', String(e));
-        return;
-      }
-      const topic = topicFor(room);
-      client.on('connect', () => {
-        setStatus('online');
-        if (!gotColor) setBanner('Connected \u2713', 'Waiting for the timer (code ' + room + ')\u2026 Make sure the computer is logged in and showing the same code.');
-        client.subscribe(topic, (err) => {
-          if (err) setBanner('Subscribe failed', String(err));
-        });
-      });
-      client.on('reconnect', () => setStatus('reconnecting…'));
-      client.on('close', () => { setStatus('offline'); if (!gotColor) setBanner('Offline', 'Cannot reach the sync server. Check this phone\u2019s internet, or try Wi-Fi instead of cellular.'); });
-      client.on('offline', () => setStatus('offline'));
-      client.on('error', (e) => { setStatus('error'); if (!gotColor) setBanner('Connection error', String(e && e.message ? e.message : e)); });
-      client.on('message', (t, payload) => {
-        const color = payload.toString();
-        if (/^#[0-9a-fA-F]{3,8}$/.test(color)) {
-          gotColor = true;
-          $('banner').classList.add('hidden');
-          $('light').style.background = color;
-        }
-      });
+      pollLast(room);
+      openSocket(room);
     }
 
     function disconnect() {
-      try { if (client) client.end(true); } catch (e) {}
-      client = null;
+      active = false;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      try { if (ws) ws.close(); } catch (e) {}
+      ws = null;
       $('light').classList.add('hidden');
       $('join').classList.remove('hidden');
     }

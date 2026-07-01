@@ -128,7 +128,6 @@
   </div>
 
   <!-- ---------- Browser-side helpers (audio, BLE, file download) ---------- -->
-  <script src="https://cdn.jsdelivr.net/npm/mqtt@5.7.0/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
   <script>
     // ----- Buzzer via Web Audio -----
@@ -215,41 +214,28 @@
     };
     window.bleSupported = function () { return !!(navigator.bluetooth); };
 
-    // ----- Realtime "phone light" sync via public MQTT-over-WebSocket -----
-    // The timer (controller) publishes the current colour to a room topic;
-    // a phone opens display.html, joins the same code and mirrors the colour.
-    const RT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
-    let _rtClient = null, _rtTopic = null, _rtColor = '#ffffff';
-    function _rtTopicFor(room) { return 'tmpulse/light/' + room; }
+    // ----- Realtime "phone light" sync via ntfy.sh over HTTPS (port 443) -----
+    // Uses standard HTTPS so it works through restrictive/corporate networks.
+    // The timer (controller) POSTs the current colour to a room topic; a phone
+    // opens display.html, joins the same code and mirrors the colour.
+    const NTFY_HTTP = 'https://ntfy.sh/';
+    let _rtTopic = null, _rtColor = '#ffffff', _rtOk = false;
+    function _rtTopicFor(room) { return 'tmpulse-signal-' + room; }
     window.rtConnect = function (room, onColor, onStatus) {
-      window.rtDisconnect();
+      // Controller side only publishes; the display page handles subscribing.
       _rtTopic = _rtTopicFor(room);
-      const clientId = 'tmp_' + Math.random().toString(16).slice(2);
-      const c = mqtt.connect(RT_BROKER, { clientId, connectTimeout: 8000, reconnectPeriod: 3000, keepalive: 30 });
-      _rtClient = c;
-      c.on('connect', function () {
-        if (onStatus) { try { onStatus('connected'); } catch (e) {} }
-        if (onColor) { c.subscribe(_rtTopic, function () {}); }
-        else { try { c.publish(_rtTopic, _rtColor, { retain: true }); } catch (e) {} }
-      });
-      c.on('reconnect', function () { if (onStatus) { try { onStatus('reconnecting'); } catch (e) {} } });
-      c.on('close', function () { if (onStatus) { try { onStatus('offline'); } catch (e) {} } });
-      c.on('error', function () { if (onStatus) { try { onStatus('error'); } catch (e) {} } });
-      c.on('message', function (t, payload) {
-        if (onColor) { try { onColor(payload.toString()); } catch (e) {} }
-      });
+      _rtOk = false;
+      window.rtPublish(_rtColor);
     };
     window.rtPublish = function (color) {
       _rtColor = color;
-      if (_rtClient && _rtTopic) {
-        try { _rtClient.publish(_rtTopic, color, { retain: true }); } catch (e) {}
-      }
+      if (!_rtTopic) return;
+      fetch(NTFY_HTTP + _rtTopic, { method: 'POST', body: color })
+        .then(function (r) { _rtOk = !!(r && r.ok); })
+        .catch(function () { _rtOk = false; });
     };
-    window.rtConnected = function () { return !!(_rtClient && _rtClient.connected); };
-    window.rtDisconnect = function () {
-      try { if (_rtClient) _rtClient.end(true); } catch (e) {}
-      _rtClient = null; _rtTopic = null;
-    };
+    window.rtConnected = function () { return _rtOk; };
+    window.rtDisconnect = function () { _rtTopic = null; _rtOk = false; };
     window.rtMakeQR = function (elId, text) {
       try {
         const el = document.getElementById(elId);
