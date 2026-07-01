@@ -187,6 +187,7 @@ TR = {
                       "时间须为非负且递增：绿 <= 黄 <= 红 <= 最大红"),
     'invalid_numbers': ("Please enter valid numbers for all time thresholds.", "请为所有时间阈值输入有效数字。"),
     'times_updated': ("Timer thresholds have been updated.", "计时阈值已更新。"),
+    'auto_stopped': ("Timer auto-stopped 30s after Max Red.", "已到最大红灯后 30 秒，计时器自动停止。"),
     'clear_roster_confirm': ("Clear all names from the roster?", "确定要清空名单中的所有姓名吗？"),
     'select_speaker': ("Please select a speaker from the roster first.", "请先在名单中选择一位演讲者。"),
     'logged': ("Logged end time {t} for {n}", "已为 {n} 记录结束时间 {t}"),
@@ -430,6 +431,9 @@ class App:
             if self.running:
                 self.time_elapsed += 1
                 self.render_time()
+                if self.time_elapsed >= self.max_red_time + 30:
+                    self.pause_timer()
+                    self.toast(self.tr('auto_stopped'))
 
     def render_time(self):
         m, s = self.time_elapsed // 60, self.time_elapsed % 60
