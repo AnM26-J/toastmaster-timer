@@ -272,7 +272,10 @@ class App:
 
     # ---- startup / login ----
     def start(self):
-        window.setupDatePicker('in_date')
+        try:
+            window.setupDatePicker('in_date')
+        except Exception as e:
+            print('setupDatePicker failed, continuing:', e)
         self.on('btn_enter', 'click', lambda e: self.do_login())
         for fid in ('in_timer_name', 'in_date', 'in_ytmc', 'in_location'):
             self.on(fid, 'keydown', self._login_enter)
