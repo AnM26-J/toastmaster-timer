@@ -14,9 +14,25 @@ from datetime import datetime
 
 from pyscript import document, window
 from pyodide.ffi import create_proxy
-from openpyxl import load_workbook
 
 TEMPLATE_FILENAME = 'TimeReport_Template.xlsx'
+
+# openpyxl is fairly large; it's installed on-demand the first time the user
+# actually exports XLSX/PDF, instead of blocking the initial page load.
+# This keeps the login screen fast/reliable on slower connections (e.g. 4G).
+_openpyxl_loaded = False
+load_workbook = None
+
+
+async def _ensure_openpyxl():
+    global _openpyxl_loaded, load_workbook
+    if _openpyxl_loaded:
+        return
+    import micropip
+    await micropip.install('openpyxl')
+    from openpyxl import load_workbook as _lw
+    load_workbook = _lw
+    _openpyxl_loaded = True
 
 # ----------------------------------------------------------------------------
 # Report template layout (mirrors the desktop version).
@@ -195,6 +211,7 @@ TR = {
     'no_more_speakers': ("No more speakers in roster.", "名单中没有更多演讲者了。"),
     'name_required': ("Please enter a name.", "请输入姓名。"),
     'exported': ("Report exported: {f}", "报告已导出：{f}"),
+    'preparing_export': ("Preparing export tool (first time only)…", "正在准备导出组件（仅首次需要）…"),
     'export_fmt_label': ("Export Report:", "导出报告："),
     'meta': ("Timer: {timer}   Date: {date}   YTMC: {ytmc}   Location: {loc}",
              "计时员：{timer}   日期：{date}   YTMC：{ytmc}   地点：{loc}"),
@@ -804,14 +821,16 @@ class App:
             self.toast(self.tr('roster_empty'))
             return
         fmt = self.el('export_fmt').value
+        if fmt in ('xlsx', 'pdf') and not _openpyxl_loaded:
+            self.toast(self.tr('preparing_export'))
         if fmt == 'xlsx':
-            self.export_xlsx()
+            await self.export_xlsx()
         elif fmt == 'csv':
             self.export_csv()
         elif fmt == 'txt':
             self.export_txt()
         elif fmt == 'pdf':
-            self.export_pdf()
+            await self.export_pdf()
 
     def _download(self, filename, data, mime):
         if isinstance(data, str):
@@ -821,7 +840,8 @@ class App:
         window.saveFile(filename, ta, mime)
         self.toast(self.tr('exported', f=filename))
 
-    def export_xlsx(self):
+    async def export_xlsx(self):
+        await _ensure_openpyxl()
         sections = self.build_report_sections()
         header = {'timer_name': self.login.get('timer_name', ''),
                   'date': self.login.get('date', ''),
@@ -880,7 +900,7 @@ class App:
                 out.append((cap + 2 * k, cap + 2 * k + 1))
         return out
 
-    def export_pdf(self):
+    async def export_pdf(self):
         sections = self.build_report_sections()
 
         def esc(s):
@@ -890,6 +910,7 @@ class App:
         # from the login info, exactly as written into the XLSX (I7 / R7 / M7).
         year = mtg = ''
         try:
+            await _ensure_openpyxl()
             wb = load_workbook(TEMPLATE_FILENAME)
             tws = wb['Timer'] if 'Timer' in wb.sheetnames else wb.active
             year = tws['B7'].value or ''
