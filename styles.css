@@ -160,3 +160,62 @@ html, body {
   font-size: 14px; opacity: 0; transition: opacity .25s; z-index: 50; max-width: 90vw;
 }
 .toast.show { opacity: .95; }
+
+/* =========================================================
+   Responsive adjustments for tablets (iPad) and phones.
+   Additive only — does not alter any existing desktop rule,
+   element, id, or class name, so no functionality changes.
+   ========================================================= */
+
+/* ---------- Tablets / iPad (portrait & landscape) ---------- */
+@media (max-width: 1024px) {
+  #app { padding: 10px; }
+  .time-display { font-size: clamp(56px, 10vw, 84px); }
+}
+
+/* ---------- Phones ---------- */
+@media (max-width: 600px) {
+  body { overflow-x: hidden; }
+
+  /* Login card: stack label above input instead of side-by-side */
+  .login-card { width: 100%; padding: 26px 20px; }
+  .login-row { flex-direction: column; align-items: flex-start; }
+  .login-row label { width: auto; text-align: left; padding-right: 0; margin-bottom: 4px; }
+  .login-row input, .login-row select { width: 100%; }
+
+  /* Toolbar: allow buttons to wrap instead of overflowing */
+  .toolbar { flex-wrap: wrap; row-gap: 6px; }
+  .meta { flex-basis: 100%; }
+
+  /* Big time display: scale down so it never overflows the screen width */
+  .time-display { font-size: clamp(38px, 15vw, 84px); padding: 12px 6px; letter-spacing: 1px; }
+
+  /* Control buttons: two per row instead of squeezing four in one line */
+  .controls button { min-width: 44%; }
+
+  /* Panels: stack full-width instead of side-by-side */
+  .panels { flex-direction: column; }
+  .panel { min-width: 100%; }
+
+  /* Threshold / roster fields: stack label above input */
+  .field { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .field label { width: auto; }
+  .field input, .field select { width: 100%; }
+
+  /* Phone-light modal: fit narrow screens comfortably */
+  .modal-card { padding: 18px 16px; width: 90%; }
+  .pair-code { font-size: 34px; letter-spacing: 6px; }
+}
+
+/* ---------- Touch devices: make tap targets comfortable ---------- */
+@media (hover: none) and (pointer: coarse) {
+  .controls button,
+  .row-btns button,
+  .icon-btn,
+  .ble-btn,
+  .phone-btn,
+  .logout-btn,
+  .btn-primary {
+    min-height: 42px;
+  }
+}
