@@ -8,14 +8,19 @@ html, body {
 
 /* ---------- Login ---------- */
 #login {
-  position: fixed; inset: 0;
+  min-height: 100vh; min-height: 100dvh;
+  width: 100%;
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(180deg, #CFE3FF 0%, #ffffff 100%);
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 24px 12px calc(24px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
 }
 .login-card {
   background: #fff; border: 1px solid #bfdbfe; border-radius: 10px;
   padding: 34px 44px; box-shadow: 0 10px 30px rgba(30,58,138,.12);
   width: 360px; max-width: 92vw;
+  margin: auto;
 }
 /* ---------- Brand logo banner ---------- */
 .brand-banner {
@@ -182,6 +187,12 @@ html, body {
   .login-row { flex-direction: column; align-items: flex-start; }
   .login-row label { width: auto; text-align: left; padding-right: 0; margin-bottom: 4px; }
   .login-row input, .login-row select { width: 100%; }
+
+  /* 16px minimum stops iOS Safari from auto-zooming the page on focus,
+     which is what was pushing the Enter button out of reach on iPhone. */
+  .login-row input, .login-row select,
+  .field input, .field select,
+  input, select { font-size: 16px; }
 
   /* Toolbar: allow buttons to wrap instead of overflowing */
   .toolbar { flex-wrap: wrap; row-gap: 6px; }
