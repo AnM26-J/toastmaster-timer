@@ -47,6 +47,9 @@
       <div class="login-actions">
         <button id="btn_enter" class="btn-primary">Enter</button>
       </div>
+      <p id="boot_status" style="text-align:center;color:#64748b;font-size:13px;margin-top:14px;">
+        Loading tool engine… please keep this tab open.
+      </p>
     </div>
   </div>
 
@@ -251,6 +254,21 @@
       } catch (e) {}
     };
 
+    // ----- Boot watchdog: makes a stuck/failed PyScript load visible -----
+    window.markAppReady = function () {
+      const s = document.getElementById('boot_status');
+      if (s) s.style.display = 'none';
+    };
+    setTimeout(function () {
+      const s = document.getElementById('boot_status');
+      if (s && s.style.display !== 'none') {
+        s.style.color = '#b91c1c';
+        s.innerHTML = 'Still loading after 20s — this usually means the network blocked the ' +
+          'tool engine (try WiFi instead of cellular, or disable Safari content blockers), ' +
+          'or the connection is slow. <a href="javascript:location.reload()" style="color:#1d4ed8;text-decoration:underline;">Tap to retry</a>';
+      }
+    }, 20000);
+
     // ----- Date picker: displays DD-MM-YYYY, keeps underlying value as YYYY-MM-DD -----
     window.setupDatePicker = function (elId) {
       const now = new Date();
@@ -296,6 +314,6 @@
     };
   </script>
 
-  <script type="py" src="./app.py?v=3" config="./pyscript.toml"></script>
+  <script type="py" src="./app.py?v=4" config="./pyscript.toml"></script>
 </body>
 </html>
