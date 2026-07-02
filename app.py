@@ -200,6 +200,8 @@ TR = {
              "计时员：{timer}   日期：{date}   YTMC：{ytmc}   地点：{loc}"),
     'login_required': ("Please fill in Timer Name, YTMC No. and Meeting Location.",
                        "请填写 Timer Name、YTMC No. 和 Meeting Location。"),
+    'phone_btn': ("\U0001F4F1 Display Light", "\U0001F4F1 显示灯光"),
+    'phone_btn_title': ("Display light", "显示灯光"),
 }
 
 # id -> translation key for static UI text
@@ -213,6 +215,7 @@ LABELS = {
     'apply_btn': 'apply', 'start_btn': 'start', 'pause_btn': 'pause', 'reset_btn': 'reset',
     'logout_btn': 'logout',
     'footer': 'footer',
+    'phone_btn': 'phone_btn',
 }
 
 
@@ -384,6 +387,9 @@ class App:
             if node is not None:
                 node.textContent = self.tr(key)
         self.el('export_btn').textContent = self.tr('export_report_btn')
+        pb = self.el('phone_btn')
+        if pb is not None:
+            pb.title = self.tr('phone_btn_title')
         if not self.ble_connected:
             self.el('ble_btn').title = self.tr('bt_title')
 
