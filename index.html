@@ -8,6 +8,31 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#2563eb" />
   <title>Toastmasters Pulse Assistant V2.0</title>
+  <script>
+    (function () {
+      function show(msg) {
+        window.__bootErrorShown = true;
+        var s = document.getElementById('boot_status');
+        if (!s) { window.__bootErr = msg; return; } // DOM not ready yet; stash it
+        s.style.display = '';
+        s.style.color = '#b91c1c';
+        s.textContent = 'Error: ' + msg;
+      }
+      window.addEventListener('error', function (ev) {
+        var msg = (ev && (ev.message || (ev.error && ev.error.message))) || 'unknown script error';
+        if (ev && ev.filename) msg += ' [' + ev.filename.split('/').pop() + ':' + ev.lineno + ']';
+        show(msg);
+      }, true);
+      window.addEventListener('unhandledrejection', function (ev) {
+        var reason = ev && ev.reason;
+        var msg = (reason && (reason.message || String(reason))) || 'unknown promise rejection';
+        show('(promise) ' + msg);
+      });
+      document.addEventListener('DOMContentLoaded', function () {
+        if (window.__bootErr) show(window.__bootErr);
+      });
+    })();
+  </script>
   <link rel="stylesheet" href="./styles.css?v=2" />
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css" />
   <script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
@@ -261,7 +286,7 @@
     };
     setTimeout(function () {
       const s = document.getElementById('boot_status');
-      if (s && s.style.display !== 'none') {
+      if (s && s.style.display !== 'none' && !window.__bootErrorShown) {
         s.style.color = '#b91c1c';
         s.innerHTML = 'Still loading after 20s — this usually means the network blocked the ' +
           'tool engine (try WiFi instead of cellular, or disable Safari content blockers), ' +
