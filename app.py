@@ -280,6 +280,10 @@ class App:
         for fid in ('in_timer_name', 'in_date', 'in_ytmc', 'in_location'):
             self.on(fid, 'keydown', self._login_enter)
         self.el('in_timer_name').focus()
+        try:
+            window.markAppReady()
+        except Exception as e:
+            print('markAppReady failed:', e)
 
     def _login_enter(self, e):
         if e.key == 'Enter':
