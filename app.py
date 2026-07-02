@@ -272,7 +272,11 @@ class App:
 
     # ---- startup / login ----
     def start(self):
-        self.el('in_date').value = datetime.now().strftime('%Y-%m-%d')
+        now = datetime.now()
+        date_field = self.el('in_date')
+        date_field.value = now.strftime('%Y-%m-%d')
+        date_field.min = f"{now.year - 10}-01-01"
+        date_field.max = f"{now.year + 10}-12-31"
         self.on('btn_enter', 'click', lambda e: self.do_login())
         for fid in ('in_timer_name', 'in_date', 'in_ytmc', 'in_location'):
             self.on(fid, 'keydown', self._login_enter)
