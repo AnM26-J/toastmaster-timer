@@ -11,8 +11,8 @@
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css" />
   <script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 </head>
 <body>
   <!-- ---------- Login screen ---------- -->
@@ -254,17 +254,26 @@
     // ----- Date picker: displays DD-MM-YYYY, keeps underlying value as YYYY-MM-DD -----
     window.setupDatePicker = function (elId) {
       const now = new Date();
-      const minYear = now.getFullYear() - 10;
-      const maxYear = now.getFullYear() + 10;
-      flatpickr('#' + elId, {
-        dateFormat: 'Y-m-d',     // underlying value read by app.py stays ISO (unchanged)
-        altInput: true,
-        altFormat: 'd-m-Y',      // what the user sees: DD-MM-YYYY
-        allowInput: false,
-        defaultDate: now,
-        minDate: minYear + '-01-01',
-        maxDate: maxYear + '-12-31'
-      });
+      const iso = now.toISOString().slice(0, 10);
+      const el = document.getElementById(elId);
+      try {
+        if (typeof flatpickr !== 'function') throw new Error('flatpickr not loaded');
+        const minYear = now.getFullYear() - 10;
+        const maxYear = now.getFullYear() + 10;
+        flatpickr('#' + elId, {
+          dateFormat: 'Y-m-d',     // underlying value read by app.py stays ISO (unchanged)
+          altInput: true,
+          altFormat: 'd-m-Y',      // what the user sees: DD-MM-YYYY
+          allowInput: false,
+          defaultDate: now,
+          minDate: minYear + '-01-01',
+          maxDate: maxYear + '-12-31'
+        });
+      } catch (e) {
+        // Fallback so a CDN hiccup never blocks the rest of the login screen.
+        console.warn('Date picker unavailable, using plain date field:', e);
+        if (el) { el.type = 'date'; el.value = iso; }
+      }
     };
 
     // ----- File download -----
