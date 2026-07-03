@@ -16,17 +16,24 @@
         if (!s) { window.__bootErr = msg; return; } // DOM not ready yet; stash it
         s.style.display = '';
         s.style.color = '#b91c1c';
+        s.style.textAlign = 'left';
+        s.style.whiteSpace = 'pre-wrap';
+        s.style.wordBreak = 'break-word';
+        s.style.fontSize = '11px';
+        s.style.fontFamily = 'monospace';
         s.textContent = 'Error: ' + msg;
       }
       window.addEventListener('error', function (ev) {
         var msg = (ev && (ev.message || (ev.error && ev.error.message))) || 'unknown script error';
         if (ev && ev.filename) msg += ' [' + ev.filename.split('/').pop() + ':' + ev.lineno + ']';
-        show(msg);
+        var stack = (ev && ev.error && ev.error.stack) ? (' | stack: ' + String(ev.error.stack).slice(0, 400)) : '';
+        show(msg + stack);
       }, true);
       window.addEventListener('unhandledrejection', function (ev) {
         var reason = ev && ev.reason;
         var msg = (reason && (reason.message || String(reason))) || 'unknown promise rejection';
-        show('(promise) ' + msg);
+        var stack = (reason && reason.stack) ? (' | stack: ' + String(reason.stack).slice(0, 400)) : '';
+        show('(promise) ' + msg + stack);
       });
       document.addEventListener('DOMContentLoaded', function () {
         if (window.__bootErr) show(window.__bootErr);
