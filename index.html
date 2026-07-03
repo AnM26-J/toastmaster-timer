@@ -9,6 +9,31 @@
   <meta name="theme-color" content="#2563eb" />
   <title>Toastmasters Pulse Assistant V2.0</title>
   <script>
+    // Fix for a known Pyodide/WebKit issue: on some iOS Safari configurations,
+    // Intl.DateTimeFormat().resolvedOptions().timeZone returns undefined
+    // (likely related to anti-fingerprinting protections). Pyodide's internal
+    // startup code (__tzset_js) doesn't guard against that and crashes with
+    // "undefined is not an object (evaluating 'str.length')". Patching the
+    // API to always return a valid string prevents the crash, before pyscript
+    // ever loads.
+    (function () {
+      try {
+        var proto = Intl.DateTimeFormat.prototype;
+        var origResolved = proto.resolvedOptions;
+        proto.resolvedOptions = function () {
+          var opts = origResolved.apply(this, arguments);
+          if (!opts || !opts.timeZone) {
+            opts = opts || {};
+            opts.timeZone = 'UTC';
+          }
+          return opts;
+        };
+      } catch (e) {
+        console.warn('timeZone shim failed to install:', e);
+      }
+    })();
+  </script>
+  <script>
     (function () {
       function show(msg) {
         window.__bootErrorShown = true;
