@@ -9,27 +9,26 @@
   <meta name="theme-color" content="#2563eb" />
   <title>Toastmasters Pulse Assistant V2.0</title>
   <script>
-    // Fix for a known Pyodide/WebKit issue: on some iOS Safari configurations,
-    // Intl.DateTimeFormat().resolvedOptions().timeZone returns undefined
-    // (likely related to anti-fingerprinting protections). Pyodide's internal
-    // startup code (__tzset_js) doesn't guard against that and crashes with
-    // "undefined is not an object (evaluating 'str.length')". Patching the
-    // API to always return a valid string prevents the crash, before pyscript
-    // ever loads.
+    // Fix for a Pyodide/WebKit issue: Pyodide's internal startup code extracts the
+    // browser's timezone abbreviation via:
+    //   date.toLocaleTimeString(undefined, {hour12:false, timeZoneName:"short"}).split(" ")[1]
+    // On some iOS Safari configurations, toLocaleTimeString with timeZoneName:"short"
+    // does not include a timezone suffix in its output, so split(" ")[1] is undefined,
+    // and Pyodide crashes with "undefined is not an object (evaluating 'str.length')"
+    // while trying to write that undefined value into WASM memory. Guarantee the
+    // output always has a trailing zone token, before pyscript/pyodide ever loads.
     (function () {
       try {
-        var proto = Intl.DateTimeFormat.prototype;
-        var origResolved = proto.resolvedOptions;
-        proto.resolvedOptions = function () {
-          var opts = origResolved.apply(this, arguments);
-          if (!opts || !opts.timeZone) {
-            opts = opts || {};
-            opts.timeZone = 'UTC';
+        var origToLocaleTimeString = Date.prototype.toLocaleTimeString;
+        Date.prototype.toLocaleTimeString = function (locales, options) {
+          var result = origToLocaleTimeString.apply(this, arguments);
+          if (options && options.timeZoneName && (!result || result.indexOf(' ') === -1)) {
+            result = (result || '') + ' UTC';
           }
-          return opts;
+          return result;
         };
       } catch (e) {
-        console.warn('timeZone shim failed to install:', e);
+        console.warn('toLocaleTimeString shim failed to install:', e);
       }
     })();
   </script>
