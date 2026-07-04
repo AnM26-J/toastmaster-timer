@@ -36,13 +36,17 @@
     /* Status pill */
     #status { position: fixed; top: 10px; right: 12px; font-size: 12px; padding: 4px 10px;
       border-radius: 20px; background: rgba(0,0,0,.35); color: #fff; z-index: 5; }
-    #exit { position: fixed; top: 8px; left: 12px; font-size: 12px; padding: 6px 12px;
-      border-radius: 20px; background: rgba(0,0,0,.35); color: #fff; z-index: 5;
-      border: none; cursor: pointer; }
-    #fullscreen_btn { position: fixed; top: 8px; left: 110px; font-size: 12px; padding: 6px 12px;
-      border-radius: 20px; background: rgba(0,0,0,.35); color: #fff; z-index: 5;
+    #top_controls { position: fixed; top: 8px; left: 12px; right: 90px; z-index: 5;
+      display: flex; flex-wrap: wrap; gap: 8px; }
+    #exit, #fullscreen_btn { font-size: 12px; padding: 6px 12px;
+      border-radius: 20px; background: rgba(0,0,0,.35); color: #fff;
       border: none; cursor: pointer; }
     #wake_hint { font-size: 12px; color: #64748b; margin-top: 10px; max-width: 300px; }
+    #fs_tip { position: fixed; left: 12px; right: 12px; bottom: 24px; z-index: 6;
+      background: rgba(15,23,42,.94); color: #fff; padding: 16px 18px; border-radius: 14px;
+      font-size: 14px; line-height: 1.5; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+    #fs_tip button { margin-top: 12px; background: #2563eb; color: #fff; border: none;
+      border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -60,8 +64,10 @@
 
   <!-- Full-screen light -->
   <div id="light" class="hidden">
-    <button id="exit" class="hidden">Change code</button>
-    <button id="fullscreen_btn" class="hidden">⛶ Full screen</button>
+    <div id="top_controls">
+      <button id="exit" class="hidden">Change code</button>
+      <button id="fullscreen_btn" class="hidden">⛶ Full screen</button>
+    </div>
     <div id="status">connecting…</div>
     <div id="banner">
       <div class="big" id="banner_big">Connecting…</div>
@@ -69,6 +75,8 @@
       <div id="wake_hint2"></div>
     </div>
   </div>
+
+  <div id="fs_tip" class="hidden"></div>
 
   <script>
     // Sync over ntfy.sh via plain HTTPS/WSS (port 443) so it works through
@@ -115,15 +123,33 @@
     // of succeeding, and lets someone retry manually if the silent auto-attempt failed.
     $('light').addEventListener('click', () => { if (active && wakeLock === null) requestWakeLock(); });
 
+    function fsApiSupported() {
+      const el = document.documentElement;
+      return !!(el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen);
+    }
+
+    function showFsTip(html) {
+      const tip = $('fs_tip');
+      tip.innerHTML = html + '<br><button id="fs_tip_close">Got it</button>';
+      tip.classList.remove('hidden');
+      $('fs_tip_close').addEventListener('click', () => tip.classList.add('hidden'));
+    }
+
     function goFullscreen() {
       const el = document.documentElement;
       const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
       if (req) {
         req.call(el).catch(() => {});
-      } else if (isIOS) {
-        alert('iPhone/iPad Safari doesn\u2019t support true full screen for web pages.\n\nFor the closest thing: tap the Share button \u2192 "Add to Home Screen", then open Signal Light from your home screen \u2014 it will open without the address bar.');
+      } else {
+        showFsTip('iPhone\u2019s Safari doesn\u2019t allow web pages to go truly full screen \u2014 that\u2019s an Apple restriction, not a bug.<br><br>Closest option: tap the <b>Share</b> button below, choose <b>\u201cAdd to Home Screen\u201d</b>, then open Signal Light from your Home Screen icon \u2014 it opens without the address bar.');
       }
     }
+    function setupFullscreenButton() {
+      const btn = $('fullscreen_btn');
+      if (isStandalone) { btn.classList.add('hidden'); return; }
+      if (!fsApiSupported()) { btn.textContent = '\u{1F4F2} Add to Home Screen'; }
+    }
+    setupFullscreenButton();
     $('fullscreen_btn').addEventListener('click', goFullscreen);
 
     function setStatus(txt) { $('status').textContent = txt; }
@@ -195,7 +221,7 @@
       $('join').classList.add('hidden');
       $('light').classList.remove('hidden');
       $('exit').classList.remove('hidden');
-      $('fullscreen_btn').classList.remove('hidden');
+      if (!isStandalone) $('fullscreen_btn').classList.remove('hidden');
       $('banner').classList.remove('hidden');
       $('light').style.background = '#ffffff';
       document.documentElement.style.background = '#ffffff';
