@@ -2,11 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#ffffff" id="theme_meta" />
   <title>Signal Light — Toastmasters Pulse Assistant</title>
   <style>
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
+      background: #ffffff; transition: background .25s ease;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
     #light { position: fixed; inset: 0; background: #ffffff;
       transition: background .25s ease; display: flex; align-items: center;
@@ -34,6 +39,10 @@
     #exit { position: fixed; top: 8px; left: 12px; font-size: 12px; padding: 6px 12px;
       border-radius: 20px; background: rgba(0,0,0,.35); color: #fff; z-index: 5;
       border: none; cursor: pointer; }
+    #fullscreen_btn { position: fixed; top: 8px; left: 110px; font-size: 12px; padding: 6px 12px;
+      border-radius: 20px; background: rgba(0,0,0,.35); color: #fff; z-index: 5;
+      border: none; cursor: pointer; }
+    #wake_hint { font-size: 12px; color: #64748b; margin-top: 10px; max-width: 300px; }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -45,16 +54,19 @@
       <p>Enter the pairing code shown on the timer's computer.</p>
       <input id="code_in" type="tel" inputmode="numeric" maxlength="6" placeholder="0000" />
       <button id="join_btn">Start Light</button>
+      <div id="wake_hint" style="margin-top:14px;"></div>
     </div>
   </div>
 
   <!-- Full-screen light -->
   <div id="light" class="hidden">
     <button id="exit" class="hidden">Change code</button>
+    <button id="fullscreen_btn" class="hidden">⛶ Full screen</button>
     <div id="status">connecting…</div>
     <div id="banner">
       <div class="big" id="banner_big">Connecting…</div>
       <div class="small" id="banner_small"></div>
+      <div id="wake_hint2"></div>
     </div>
   </div>
 
@@ -67,16 +79,52 @@
     let ws = null, wakeLock = null, gotColor = false, curRoom = '';
     let active = false, reconnectTimer = null;
 
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.navigator.standalone === true ||
+      window.matchMedia('(display-mode: standalone)').matches;
+
     function topicFor(room) { return 'tmpulse-signal-' + room; }
     function validColor(c) { return /^#[0-9a-fA-F]{3,8}$/.test(c); }
 
+    function setWakeHint(msg) {
+      const a = $('wake_hint'), b = $('wake_hint2');
+      if (a) a.textContent = msg;
+      if (b) b.textContent = msg;
+    }
+
     async function requestWakeLock() {
-      try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); }
-      catch (e) { /* ignore */ }
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLock.addEventListener('release', () => { wakeLock = null; });
+          setWakeHint('Screen will stay awake while this tab is open.');
+          return true;
+        }
+      } catch (e) { /* fall through to hint below */ }
+      if (isIOS && !isStandalone) {
+        setWakeHint('Tip: tap Share \u2192 Add to Home Screen, then open it from there \u2014 this keeps the screen awake and hides the browser bar.');
+      } else {
+        setWakeHint('This browser may still dim the screen after a while \u2014 tap the screen occasionally to keep it awake.');
+      }
+      return false;
     }
     document.addEventListener('visibilitychange', () => {
-      if (wakeLock === null && document.visibilityState === 'visible') requestWakeLock();
+      if (wakeLock === null && document.visibilityState === 'visible' && active) requestWakeLock();
     });
+    // A user gesture (tap) gives the Wake Lock / Fullscreen APIs the best chance
+    // of succeeding, and lets someone retry manually if the silent auto-attempt failed.
+    $('light').addEventListener('click', () => { if (active && wakeLock === null) requestWakeLock(); });
+
+    function goFullscreen() {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+      if (req) {
+        req.call(el).catch(() => {});
+      } else if (isIOS) {
+        alert('iPhone/iPad Safari doesn\u2019t support true full screen for web pages.\n\nFor the closest thing: tap the Share button \u2192 "Add to Home Screen", then open Signal Light from your home screen \u2014 it will open without the address bar.');
+      }
+    }
+    $('fullscreen_btn').addEventListener('click', goFullscreen);
 
     function setStatus(txt) { $('status').textContent = txt; }
     function setBanner(big, small) {
@@ -88,6 +136,10 @@
       gotColor = true;
       $('banner').classList.add('hidden');
       $('light').style.background = color;
+      document.documentElement.style.background = color;
+      document.body.style.background = color;
+      const meta = $('theme_meta');
+      if (meta) meta.setAttribute('content', color);
     }
 
     // Fetch the last cached colour so a phone joining mid-session syncs at once.
@@ -143,8 +195,11 @@
       $('join').classList.add('hidden');
       $('light').classList.remove('hidden');
       $('exit').classList.remove('hidden');
+      $('fullscreen_btn').classList.remove('hidden');
       $('banner').classList.remove('hidden');
       $('light').style.background = '#ffffff';
+      document.documentElement.style.background = '#ffffff';
+      document.body.style.background = '#ffffff';
       requestWakeLock();
       setStatus('connecting…');
       setBanner('Connecting…', 'Reaching the sync server for code ' + room);
@@ -157,6 +212,9 @@
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       try { if (ws) ws.close(); } catch (e) {}
       ws = null;
+      if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+      document.documentElement.style.background = '';
+      document.body.style.background = '';
       $('light').classList.add('hidden');
       $('join').classList.remove('hidden');
     }
