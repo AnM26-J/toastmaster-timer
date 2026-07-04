@@ -7,6 +7,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#ffffff" id="theme_meta" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icon-192.png" />
   <title>Signal Light — Toastmasters Pulse Assistant</title>
   <style>
     * { box-sizing: border-box; }
@@ -38,7 +40,7 @@
       border-radius: 20px; background: rgba(0,0,0,.35); color: #fff; z-index: 5; }
     #top_controls { position: fixed; top: 8px; left: 12px; right: 90px; z-index: 5;
       display: flex; flex-wrap: wrap; gap: 8px; }
-    #exit, #fullscreen_btn { font-size: 12px; padding: 6px 12px;
+    #exit, #fullscreen_btn, #install_btn { font-size: 12px; padding: 6px 12px;
       border-radius: 20px; background: rgba(0,0,0,.35); color: #fff;
       border: none; cursor: pointer; }
     #wake_hint { font-size: 12px; color: #64748b; margin-top: 10px; max-width: 300px; }
@@ -67,6 +69,7 @@
     <div id="top_controls">
       <button id="exit" class="hidden">Change code</button>
       <button id="fullscreen_btn" class="hidden">⛶ Full screen</button>
+      <button id="install_btn" class="hidden">📲 Add to Home Screen</button>
     </div>
     <div id="status">connecting…</div>
     <div id="banner">
@@ -141,16 +144,47 @@
       if (req) {
         req.call(el).catch(() => {});
       } else {
-        showFsTip('iPhone\u2019s Safari doesn\u2019t allow web pages to go truly full screen \u2014 that\u2019s an Apple restriction, not a bug.<br><br>Closest option: tap the <b>Share</b> button below, choose <b>\u201cAdd to Home Screen\u201d</b>, then open Signal Light from your Home Screen icon \u2014 it opens without the address bar.');
+        showFsTip('This browser doesn\u2019t allow web pages to go truly full screen.<br><br>Use the <b>\u201cAdd to Home Screen\u201d</b> button instead \u2014 opening from your Home Screen icon removes the address bar automatically.');
       }
     }
-    function setupFullscreenButton() {
-      const btn = $('fullscreen_btn');
-      if (isStandalone) { btn.classList.add('hidden'); return; }
-      if (!fsApiSupported()) { btn.textContent = '\u{1F4F2} Add to Home Screen'; }
-    }
-    setupFullscreenButton();
     $('fullscreen_btn').addEventListener('click', goFullscreen);
+
+    // ----- One-tap "Add to Home Screen" -----
+    // Android Chrome/Edge fire beforeinstallprompt when the page + manifest are
+    // installable: this gives a REAL one-tap native install dialog. iOS Safari
+    // never fires this event (Apple doesn't allow it), so we fall back to a
+    // clear step-by-step tip there instead of pretending we can automate it.
+    let deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      $('install_btn').classList.remove('hidden');
+    });
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      $('install_btn').classList.add('hidden');
+    });
+    $('install_btn').addEventListener('click', async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        try { await deferredInstallPrompt.userChoice; } catch (e) {}
+        deferredInstallPrompt = null;
+        return;
+      }
+      if (isIOS) {
+        showFsTip('iOS doesn\u2019t let websites trigger this automatically (an Apple restriction) \u2014 it takes 2 taps:<br><br>1. Tap the <b>Share</b> icon (\u2b06\ufe0e) in Safari\u2019s toolbar<br>2. Choose <b>\u201cAdd to Home Screen\u201d</b><br><br>Then open Signal Light from the new icon on your Home Screen.');
+      } else {
+        showFsTip('Look for <b>\u201cAdd to Home screen\u201d</b> or <b>\u201cInstall app\u201d</b> in this browser\u2019s menu (usually the \u22ee or \u2026 icon in the toolbar).');
+      }
+    });
+    function setupInstallButton() {
+      // Show immediately for iOS (manual-steps tip) and standalone-capable
+      // browsers even before beforeinstallprompt fires, so the option is
+      // discoverable; Android/Chrome upgrades it to the real one-tap prompt
+      // automatically once beforeinstallprompt arrives.
+      if (isStandalone) return; // already installed/opened from Home Screen
+      $('install_btn').classList.remove('hidden');
+    }
 
     function setStatus(txt) { $('status').textContent = txt; }
     function setBanner(big, small) {
@@ -222,6 +256,7 @@
       $('light').classList.remove('hidden');
       $('exit').classList.remove('hidden');
       if (!isStandalone) $('fullscreen_btn').classList.remove('hidden');
+      setupInstallButton();
       $('banner').classList.remove('hidden');
       $('light').style.background = '#ffffff';
       document.documentElement.style.background = '#ffffff';
